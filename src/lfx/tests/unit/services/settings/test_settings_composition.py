@@ -131,6 +131,9 @@ EXPECTED_FIELDS = {
     "max_vertex_builds_to_keep",
     "max_vertex_builds_per_vertex",
     "max_flow_version_entries_per_flow",
+    # FlowHistorySettings
+    "flow_op_log_row_ops_limit",
+    "flow_op_log_row_bytes_limit",
     # SecuritySettings
     "cors_origins",
     "cors_allow_credentials",

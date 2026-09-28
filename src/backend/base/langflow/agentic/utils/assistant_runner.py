@@ -24,12 +24,15 @@ from langflow.agentic.api.schemas import AssistantRequest
 from langflow.agentic.services.assistant_service import execute_flow_with_validation_streaming
 from langflow.agentic.services.flow_types import LANGFLOW_ASSISTANT_FLOW
 from langflow.api.utils.core import release_db_transaction
+from langflow.api.utils.flow_history import history_http_error
 from langflow.api.v1.flows import _new_flow, _save_flow_to_fs, _validate_catalog_policy_for_write
 from langflow.initial_setup.setup import get_or_create_default_folder
 from langflow.services.database.models.flow.guards import ensure_flow_unlocked, lock_flow_for_update
 from langflow.services.database.models.flow.model import Flow, FlowCreate
 from langflow.services.database.models.user.model import User
 from langflow.services.deps import get_catalog_policy_service, get_storage_service
+from langflow.services.flow_history.errors import FlowHistoryError
+from langflow.services.flow_history.recorder import write_flow_graph
 from langflow.services.model_provider_policy_scope import scoped_model_provider_policy_for_flow
 
 if TYPE_CHECKING:
@@ -252,10 +255,11 @@ async def run_assistant_and_persist(
         )
 
     if canvas.changed:
+        # The assistant can run for a while. Re-read under a row lock so a
+        # concurrent lock toggle and this write are ordered atomically, and so
+        # the write extends the flow's history from its latest revision.
+        await lock_flow_for_update(session, flow)
         if not created_new:
-            # The assistant can run for a while. Re-read under a row lock so a
-            # concurrent lock toggle and this write are ordered atomically.
-            await lock_flow_for_update(session, flow)
             ensure_flow_unlocked(flow)
         flow_data = working_snapshot["data"] if working_snapshot else canvas.data
         # Headless MCP has no UI to apply an edit_field review proposal, so apply
@@ -267,6 +271,10 @@ async def run_assistant_and_persist(
                 flow_data,
                 snapshot=get_catalog_policy_service().snapshot,
             )
+            try:
+                await write_flow_graph(session, flow, flow_data, actor_id=user_id)
+            except FlowHistoryError as exc:
+                raise history_http_error(exc) from exc
         except HTTPException:
             if created_new:
                 # The assistant needs a committed flow id while it runs. Do not
@@ -275,7 +283,6 @@ async def run_assistant_and_persist(
                 await session.delete(flow)
                 await session.commit()
             raise
-        flow.data = flow_data
         flow.updated_at = datetime.now(timezone.utc)
         if created_new and canvas.name:
             flow.name = canvas.name

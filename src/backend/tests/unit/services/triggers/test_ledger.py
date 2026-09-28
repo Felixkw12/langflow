@@ -18,7 +18,9 @@ from tests.unit.alembic.test_migration_execution import _make_alembic_cfg, db_ur
 
 @pytest.fixture
 def migrated_ledger_url(db_url):  # noqa: F811
-    command.upgrade(_make_alembic_cfg(db_url), "b7c4e1a9d3f2")  # pragma: allowlist secret
+    # Head, not the ledger's own revision: the test writes through today's
+    # models, which expect every column later migrations added.
+    command.upgrade(_make_alembic_cfg(db_url), "head")
     return db_url
 
 

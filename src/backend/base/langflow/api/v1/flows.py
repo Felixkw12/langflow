@@ -97,6 +97,7 @@ from langflow.services.database.models.flow.model import (
     FlowRead,
     FlowType,
     FlowUpdate,
+    FlowWriteRead,
 )
 
 # TODO: Full-version import/export is planned as a follow-up feature. When implemented,
@@ -569,7 +570,7 @@ async def read_public_flow(
     return flow_read
 
 
-@router.patch("/{flow_id}", response_model=FlowRead, status_code=200)
+@router.patch("/{flow_id}", response_model=FlowWriteRead, status_code=200)
 async def update_flow(
     *,
     session: DbSession,
@@ -728,7 +729,7 @@ async def update_flow(
         ) from e
 
 
-@router.put("/{flow_id}", response_model=FlowRead)
+@router.put("/{flow_id}", response_model=FlowWriteRead)
 async def upsert_flow(
     *,
     session: DbSession,
