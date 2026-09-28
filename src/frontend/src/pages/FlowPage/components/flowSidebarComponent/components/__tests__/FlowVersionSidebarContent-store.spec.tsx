@@ -13,6 +13,7 @@ jest.mock("@tanstack/react-query", () => ({
 jest.mock("@/utils/reactflowUtils", () => ({
   downloadFlow: jest.fn(),
   processFlows: jest.fn(),
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   removeApiKeys: jest.fn((flow: any) => flow),
 }));
 
@@ -27,9 +28,25 @@ jest.mock("@/controllers/API/helpers/constants", () => ({
 // Configurable version entry query mock — controls what selectedEntryFull returns
 // ---------------------------------------------------------------------------
 
+// biome-ignore lint/suspicious/noExplicitAny: legacy
 let entryQueryData: any = null;
 let entryQueryLoading = false;
 let entryQueryError = false;
+
+// No recorded history: these specs cover the saved-version list.
+jest.mock("@/controllers/API/queries/flow-revisions", () => ({
+  useGetFlowRevisions: () => ({
+    data: undefined,
+    fetchNextPage: jest.fn(),
+    hasNextPage: false,
+    isFetchingNextPage: false,
+  }),
+  useGetFlowRevision: () => ({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  }),
+}));
 
 jest.mock("@/controllers/API/queries/flow-version", () => ({
   useGetFlowVersions: () => ({
@@ -75,6 +92,7 @@ const mockCurrentFlow = {
   data: { nodes: [{ id: "draft-node" }], edges: [{ id: "draft-edge" }] },
 };
 
+// biome-ignore lint/suspicious/noExplicitAny: legacy
 const storeState: Record<string, any> = {
   currentFlow: mockCurrentFlow,
   nodes: [{ id: "draft-node" }],
@@ -83,8 +101,10 @@ const storeState: Record<string, any> = {
   inspectionPanelVisible: false,
 };
 
+// biome-ignore lint/suspicious/noExplicitAny: legacy
 const storeSubscribers = new Set<(state: any) => void>();
 
+// biome-ignore lint/suspicious/noExplicitAny: legacy
 const setStateMock = jest.fn((partial: any) => {
   Object.assign(storeState, partial);
   // Notify subscribers synchronously, like real zustand
@@ -92,9 +112,12 @@ const setStateMock = jest.fn((partial: any) => {
 });
 
 jest.mock("@/stores/flowStore", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   const store: any = (selector: any) => selector(storeState);
   store.getState = () => storeState;
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   store.setState = (...args: any[]) => setStateMock(...args);
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   store.subscribe = jest.fn((cb: any) => {
     storeSubscribers.add(cb);
     return () => storeSubscribers.delete(cb);
@@ -106,6 +129,7 @@ const setErrorDataMock = jest.fn();
 const setSuccessDataMock = jest.fn();
 jest.mock("@/stores/alertStore", () => ({
   __esModule: true,
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   default: (selector: any) =>
     selector({
       setSuccessData: setSuccessDataMock,
@@ -128,6 +152,7 @@ jest.mock("@/stores/versionPreviewStore", () => {
     clearPreview: clearPreviewMock,
     setPreviewLoading: setPreviewLoadingMock,
   };
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   const store: any = (selector: any) => selector(state);
   store.getState = () => state;
   store.setState = jest.fn();
@@ -135,15 +160,18 @@ jest.mock("@/stores/versionPreviewStore", () => {
 });
 
 jest.mock("@/utils/utils", () => ({
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   cn: (...args: any[]) => args.filter(Boolean).join(" "),
 }));
 
 jest.mock("@/components/common/genericIconComponent", () => ({
   __esModule: true,
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   default: ({ name }: any) => <span data-testid={`icon-${name}`} />,
 }));
 
 jest.mock("@/components/ui/button", () => ({
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   Button: ({ children, onClick, ...rest }: any) => (
     <button onClick={onClick} {...rest}>
       {children}
@@ -152,14 +180,18 @@ jest.mock("@/components/ui/button", () => ({
 }));
 
 jest.mock("@/components/ui/dropdown-menu", () => ({
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   DropdownMenu: ({ children }: any) => <div>{children}</div>,
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   DropdownMenuContent: ({ children }: any) => <div>{children}</div>,
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   DropdownMenuItem: ({ children, onClick }: any) => (
     <div role="menuitem" onClick={onClick}>
       {children}
     </div>
   ),
   DropdownMenuSeparator: () => <hr />,
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   DropdownMenuTrigger: ({ children }: any) => <>{children}</>,
 }));
 
@@ -170,12 +202,15 @@ jest.mock("@/components/ui/checkbox", () => ({
 const setActiveSectionMock = jest.fn();
 jest.mock("@/components/ui/sidebar", () => ({
   useSidebar: () => ({ setActiveSection: setActiveSectionMock }),
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   SidebarGroupLabel: ({ children, className }: any) => (
     <div className={className}>{children}</div>
   ),
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   SidebarMenu: ({ children, className }: any) => (
     <div className={className}>{children}</div>
   ),
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   SidebarMenuButton: ({ children, onClick, isActive, className }: any) => (
     <div
       role="button"
@@ -185,10 +220,12 @@ jest.mock("@/components/ui/sidebar", () => ({
       {children}
     </div>
   ),
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   SidebarMenuItem: ({ children }: any) => <div>{children}</div>,
 }));
 
 jest.mock("lodash", () => ({
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   cloneDeep: jest.fn((obj: any) =>
     obj === undefined ? undefined : JSON.parse(JSON.stringify(obj)),
   ),
@@ -270,6 +307,7 @@ describe("FlowVersionSidebarContent store behavior", () => {
 
     // Should NOT have set inspectionPanelVisible: true
     const restoreCalls = setStateMock.mock.calls.filter(
+      // biome-ignore lint/suspicious/noExplicitAny: legacy
       (args: any[]) => args[0]?.inspectionPanelVisible === true,
     );
     expect(restoreCalls).toHaveLength(0);
@@ -358,6 +396,7 @@ describe("FlowVersionSidebarContent store behavior", () => {
 
     // Should NOT have set empty arrays in the store
     const emptyCalls = setStateMock.mock.calls.filter(
+      // biome-ignore lint/suspicious/noExplicitAny: legacy
       (args: any[]) =>
         Array.isArray(args[0]?.nodes) && args[0].nodes.length === 0,
     );
@@ -365,6 +404,7 @@ describe("FlowVersionSidebarContent store behavior", () => {
 
     // Should NOT have called setPreview with empty data
     const emptyPreviewCalls = setPreviewMock.mock.calls.filter(
+      // biome-ignore lint/suspicious/noExplicitAny: legacy
       (args: any[]) => Array.isArray(args[0]) && args[0].length === 0,
     );
     expect(emptyPreviewCalls).toHaveLength(0);
