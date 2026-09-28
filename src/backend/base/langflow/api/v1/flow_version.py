@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from lfx.log import logger
 from lfx.services.settings.feature_flags import FEATURE_FLAGS
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from langflow.api.utils import CurrentActiveUser, DbSession
@@ -41,6 +41,7 @@ from langflow.services.database.models.flow_version.model import (
     FlowVersionRead,
     FlowVersionReadWithData,
 )
+from langflow.services.database.models.user.model import User
 from langflow.services.deps import get_catalog_policy_service, get_settings_service
 from langflow.services.flow_history.errors import FlowHistoryError
 from langflow.services.flow_history.recorder import checkpoint_fields, write_flow_graph
@@ -83,6 +84,20 @@ def _version_to_read_full(
     if strip_keys:
         result.data = strip_version_data(result.data)
     return result
+
+
+async def _attach_saved_by_usernames(session: AsyncSession, entries: list[FlowVersionRead]) -> None:
+    """Name who saved each version, resolving every author in one query.
+
+    An author who has since been deleted resolves to None, which the interface
+    shows as an unknown user.
+    """
+    user_ids = {entry.saved_by_user_id for entry in entries if entry.saved_by_user_id}
+    if not user_ids:
+        return
+    names = dict((await session.exec(select(User.id, User.username).where(col(User.id).in_(user_ids)))).all())
+    for entry in entries:
+        entry.saved_by_username = names.get(entry.saved_by_user_id) if entry.saved_by_user_id else None
 
 
 async def _get_user_flow(session: AsyncSession, flow_id: UUID, user_id: UUID) -> Flow:
@@ -172,6 +187,7 @@ async def list_flow_versions(
         )
         entries = [_version_to_read(entry, is_deployed=None) for entry, _is_deployed in rows_simple]
 
+    await _attach_saved_by_usernames(session, entries)
     max_entries = get_settings_service().settings.max_flow_version_entries_per_flow
     return FlowVersionListResponse(
         entries=entries,
@@ -236,9 +252,10 @@ async def create_snapshot(
         entry = await create_flow_version_entry(
             session,
             flow_id=flow.id,
-            user_id=current_user.id,
+            user_id=flow.user_id,
             data=data,
             description=description,
+            saved_by_user_id=current_user.id,
             **await checkpoint_fields(session, flow),
         )
     except FlowVersionError as exc:
@@ -316,9 +333,10 @@ async def activate_version(
                 await create_flow_version_entry(
                     session,
                     flow_id=flow.id,
-                    user_id=current_user.id,
+                    user_id=flow.user_id,
                     data=current_data,
                     description=f"Auto-saved before activating v{target_entry.version_number}",
+                    saved_by_user_id=current_user.id,
                     **await checkpoint_fields(session, flow),
                 )
 
