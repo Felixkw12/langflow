@@ -7,6 +7,7 @@ import useAlertStore from "@/stores/alertStore";
 import useFlowHistoryRepairStore, {
   repairableProblem,
 } from "@/stores/flowHistoryRepairStore";
+import useFlowSaveCauseStore from "@/stores/flowSaveCauseStore";
 import useFlowStore from "@/stores/flowStore";
 import useFlowsManagerStore from "@/stores/flowsManagerStore";
 import type { AllNodeType, EdgeType, FlowType } from "@/types/flow";
@@ -111,6 +112,8 @@ const useSaveFlow = () => {
           const providerScopeChanged =
             persistedFlowForScope !== undefined &&
             persistedFlowForScope.folder_id !== folder_id;
+          // Set by a component update or code edit; one save carries it.
+          const cause = useFlowSaveCauseStore.getState().takePendingCause(id);
           const updatePayload = {
             id,
             name,
@@ -122,6 +125,7 @@ const useSaveFlow = () => {
             // One id per save: a retry of this request is recognized by the
             // server and recorded in the flow's history only once.
             request_id: uuidv4(),
+            ...(cause && { cause }),
             ...(providerScopeChanged && { providerScopeChanged: true }),
           };
           // biome-ignore lint/suspicious/noExplicitAny: legacy

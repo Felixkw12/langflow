@@ -27,6 +27,8 @@ interface IPatchUpdateFlow {
   repair_revision_mismatch?: boolean;
   /** Repair a graph that breaks the flow graph rules instead of refusing it. */
   repair_invalid_graph?: boolean;
+  /** Why this save happens (a component update, a code edit), for the history. */
+  cause?: string;
   /** Internal signal; stripped before PATCHing the API. */
   providerScopeChanged?: boolean;
 }
