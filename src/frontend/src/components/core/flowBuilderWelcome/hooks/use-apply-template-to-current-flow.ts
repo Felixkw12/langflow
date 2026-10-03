@@ -6,6 +6,7 @@ import useFlowStore from "@/stores/flowStore";
 import useFlowsManagerStore from "@/stores/flowsManagerStore";
 import type { FlowType } from "@/types/flow";
 import { getUserScopedDuplicateName } from "@/utils/flow-naming";
+import { withNodesTableRowIds } from "@/utils/table-row-ids";
 import {
   findStarterTemplate,
   type StarterTemplateNameKey,
@@ -61,6 +62,8 @@ export function useApplyTemplateToCurrentFlow() {
       const template = findStarterTemplate(examples, nameKey);
       const templateData = template?.data;
       if (!template || !templateData) return false;
+      // The template's tables are new to this flow: their rows need ids.
+      const templateNodes = withNodesTableRowIds(templateData.nodes ?? []);
 
       if (currentFlow) {
         // Feeding backend-rejected names back as pseudo-flows lets the same
@@ -83,7 +86,7 @@ export function useApplyTemplateToCurrentFlow() {
           ...currentFlow,
           name,
           data: {
-            nodes: templateData.nodes ?? [],
+            nodes: templateNodes,
             edges: templateData.edges ?? [],
             viewport: currentFlow.data?.viewport ?? { x: 0, y: 0, zoom: 1 },
           },
@@ -120,7 +123,7 @@ export function useApplyTemplateToCurrentFlow() {
         void persist(0);
       } else {
         // No flow context yet — update the canvas directly as a fallback.
-        setNodes(templateData.nodes ?? []);
+        setNodes(templateNodes);
         setEdges(templateData.edges ?? []);
       }
 
