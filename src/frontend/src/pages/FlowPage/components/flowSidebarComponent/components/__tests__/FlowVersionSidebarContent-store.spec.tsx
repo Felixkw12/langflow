@@ -14,6 +14,11 @@ jest.mock("@/utils/reactflowUtils", () => ({
   downloadFlow: jest.fn(),
   processFlows: jest.fn(),
   // biome-ignore lint/suspicious/noExplicitAny: legacy
+  cleanEdges: jest.fn((_nodes: any, edges: any) => ({
+    edges,
+    brokenEdges: [],
+  })),
+  // biome-ignore lint/suspicious/noExplicitAny: legacy
   removeApiKeys: jest.fn((flow: any) => flow),
 }));
 
@@ -41,6 +46,7 @@ jest.mock("@/controllers/API/queries/flow-revisions", () => ({
     hasNextPage: false,
     isFetchingNextPage: false,
   }),
+  useGetFlowHistoryTimeline: () => ({ data: undefined }),
   useGetFlowRevision: () => ({
     data: undefined,
     isLoading: false,
