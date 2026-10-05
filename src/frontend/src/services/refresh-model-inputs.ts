@@ -10,7 +10,7 @@ import useAlertStore from "@/stores/alertStore";
 import useFlowStore, { syncNodeTranslations } from "@/stores/flowStore";
 import useFlowsManagerStore from "@/stores/flowsManagerStore";
 import { useUtilityStore } from "@/stores/utilityStore";
-import type { APIClassType } from "@/types/api";
+import type { APIClassType, APITemplateType } from "@/types/api";
 import type { AllNodeType } from "@/types/flow";
 import {
   isCustomComponentBlockError,
@@ -170,44 +170,40 @@ async function refreshSingleNode(
   const currentModelValue = nodeData.template[modelFieldKey]?.value;
 
   try {
-    const requestPayload = buildRefreshPayload(
-      nodeData.template,
-      flowId,
-      folderId,
-    );
-
-    let response;
-    try {
-      const queryParams = new URLSearchParams();
-      appendProviderScope(queryParams, { flowId });
-      response = await api.post<APIClassType>(
-        `${getURL("CUSTOM_COMPONENT", { update: "update" })}${
-          queryParams.toString() ? `?${queryParams.toString()}` : ""
-        }`,
-        {
-          code: nodeData.template.code?.value,
-          template: requestPayload,
-          field: modelFieldKey,
-          field_value: currentModelValue,
-          tool_mode: nodeData.tool_mode,
-        },
-      );
-      // biome-ignore lint/suspicious/noExplicitAny: legacy
-    } catch (e: any) {
-      // Suppress 403 specifically from custom component blocking — fallback
-      // for race conditions where guards above couldn't detect the outdated
-      // state.
-      if (!allowCustomComponents && isCustomComponentBlockError(e)) {
-        console.warn(
-          `Suppressed 403 for outdated component (node ${node.id}):`,
-          e.response.data.detail,
+    const postRefresh = async (template: APITemplateType, value: unknown) => {
+      try {
+        const queryParams = new URLSearchParams();
+        appendProviderScope(queryParams, { flowId });
+        const response = await api.post<APIClassType>(
+          `${getURL("CUSTOM_COMPONENT", { update: "update" })}${
+            queryParams.toString() ? `?${queryParams.toString()}` : ""
+          }`,
+          {
+            code: nodeData.template.code?.value,
+            template: buildRefreshPayload(template, flowId, folderId),
+            field: modelFieldKey,
+            field_value: value,
+            tool_mode: nodeData.tool_mode,
+          },
         );
-        return;
+        return response.data;
+        // biome-ignore lint/suspicious/noExplicitAny: legacy
+      } catch (e: any) {
+        // Suppress 403 specifically from custom component blocking — fallback
+        // for race conditions where guards above couldn't detect the outdated
+        // state.
+        if (!allowCustomComponents && isCustomComponentBlockError(e)) {
+          console.warn(
+            `Suppressed 403 for outdated component (node ${node.id}):`,
+            e.response.data.detail,
+          );
+          return undefined;
+        }
+        throw e;
       }
-      throw e;
-    }
+    };
 
-    const responseData = response.data;
+    let responseData = await postRefresh(nodeData.template, currentModelValue);
     if (!responseData?.template) return;
 
     // Validate and correct the model value against available options
@@ -216,6 +212,18 @@ async function refreshSingleNode(
       modelFieldKey,
       providerConfiguration,
     );
+    // validateModelValue returns the template it was given unless it
+    // replaced the model.
+    if (validatedTemplate !== responseData.template) {
+      // The backend set the provider's fields (API key, base URL) for the model
+      // it was sent. Ask again for the replacement, or the node keeps the old
+      // provider's fields until the next open corrects them.
+      responseData = await postRefresh(
+        validatedTemplate,
+        validatedTemplate[modelFieldKey]?.value,
+      );
+      if (!responseData?.template) return;
+    }
 
     // This response was authorized for the flow/project snapshot captured at
     // refresh start. Never let it update a same-id node after navigation (or a
@@ -232,7 +240,11 @@ async function refreshSingleNode(
     setNode(
       node.id,
       (currentNode) =>
-        createUpdatedNode(currentNode, validatedTemplate, responseData.outputs),
+        createUpdatedNode(
+          currentNode,
+          responseData.template,
+          responseData.outputs,
+        ),
       false,
       undefined,
       { autoSave: false },
